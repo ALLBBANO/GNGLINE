@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>GSV · G&G Smart VOC</title>
+<style>
+  :root{
+    --bg:#F4F3F0; --card:#fff; --ink:#22252B; --sub:#8A8D94;
+    --line:#E9E6E0; --accent:#E2570F; --accent-soft:#FDEFE6;
+    --green:#2F9E44; --warn:#E8590C;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"Apple SD Gothic Neo","Pretendard","Malgun Gothic",sans-serif}
+  .app{max-width:460px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+  .header{background:var(--ink);color:#fff;padding:16px 18px;display:flex;align-items:baseline;gap:10px;position:sticky;top:0;z-index:10}
+  .header .logo{font-size:20px;font-weight:900;letter-spacing:-.02em}
+  .header .sub{font-size:12px;color:#B9BCC2}
+  .header .me{margin-left:auto;font-size:11px;color:#9A9DA3}
+  .body{flex:1;padding:16px 14px 100px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+  .label{font-size:12px;font-weight:700;color:var(--sub);letter-spacing:.05em;margin-bottom:6px}
+  input,textarea{width:100%;border:1.5px solid #E5E2DC;border-radius:10px;padding:12px;
+    font-size:15px;font-family:inherit;outline:none;background:#fff}
+  textarea{resize:none;line-height:1.6}
+  input:focus,textarea:focus{border-color:var(--accent)}
+  .btn{width:100%;padding:15px;border:none;border-radius:12px;background:var(--accent);
+    color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:4px}
+  .btn:disabled{opacity:.4}
+  .btn-ghost{background:#fff;border:1px solid #D8D4CC;color:#55585F;font-size:14px;margin-top:8px}
+  .sev{display:flex;gap:6px}
+  .sev button{flex:1;padding:12px 0 9px;border-radius:10px;border:2px solid #ECEAE5;
+    background:#FAF9F7;color:#9A9DA3;font-weight:800;font-size:16px;cursor:pointer;position:relative}
+  .sev button .lab{font-size:10px;font-weight:600;margin-top:2px}
+  .sev button .aitag{position:absolute;top:-9px;left:50%;transform:translateX(-50%);
+    font-size:9px;font-weight:800;background:var(--ink);color:#fff;padding:1px 6px;border-radius:99px;white-space:nowrap}
+  .hint{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.5}
+  .spin{width:36px;height:36px;margin:0 auto 14px;border:4px solid #F0EDE7;
+    border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .center{text-align:center;padding:44px 20px}
+  .err{color:#C92A2A;font-size:13px;font-weight:600;margin-top:8px}
+  .pill{display:inline-block;padding:3px 10px;border-radius:6px;background:#F0EDE7;
+    font-size:12px;font-weight:800;color:#55585F}
+  .read{font-size:14px;line-height:1.65}
+  .badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:800;color:#fff}
+  .logout{margin-left:auto;font-size:11px;color:#B9BCC2;background:transparent;
+    border:1px solid #4A4E57;border-radius:8px;padding:4px 10px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <span class="logo">GSV</span>
+    <span class="sub">G&amp;G Smart VOC</span>
+    <span class="me" id="me"></span>
+  </div>
+  <div class="body" id="root"></div>
+</div>
+
+<script>
+const SEV = [
+  {n:1,label:"경미",color:"#2F9E44",desc:"현장 즉시 해결, 단순 불편"},
+  {n:2,label:"주의",color:"#66A80F",desc:"해결됐으나 재발 가능"},
+  {n:3,label:"보통",color:"#F08C00",desc:"조치 필요, 팀 공유 권장"},
+  {n:4,label:"심각",color:"#E8590C",desc:"본사 확인 필수"},
+  {n:5,label:"긴급",color:"#C92A2A",desc:"본사·원청 보고 검토"},
+];
+// 세션 메모리에만 보관 (저장 안 함). 새로고침하면 사라짐.
+let auth = { id:null, pw:null, writer:null };
+let state = { step:"login", site:"", raw:"", questions:[], answers:[], draft:null, busy:false, err:"" };
+
+const $ = id => document.getElementById(id);
+function setMe(){ $("me").textContent = auth.writer ? (auth.writer+" 님") : ""; }
+
+async function api(path, payload){
+  const r = await fetch(path, {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload)});
+  return await r.json();
+}
+
+function render(){
+  setMe();
+  const r = $("root");
+  if(state.step==="login") return renderLogin(r);
+  if(state.step==="home") return renderHome(r);
+  if(state.step==="input") return renderInput(r);
+  if(state.step==="questions") return renderQuestions(r);
+  if(state.step==="busy") return renderBusy(r);
+  if(state.step==="review") return renderReview(r);
+  if(state.step==="done") return renderDone(r);
+}
+
+function renderLogin(r){
+  r.innerHTML = `
+    <div class="card" style="background:var(--ink);border:none;color:#fff">
+      <div style="font-size:17px;font-weight:800;margin-bottom:6px">지파넷 계정으로 시작</div>
+      <div style="font-size:12px;color:#B9BCC2;line-height:1.6">
+        본인 지파넷 아이디로 로그인하면, 등록 글이 본인 이름으로 올라갑니다.<br>
+        비밀번호는 저장되지 않습니다.</div>
+    </div>
+    <div class="card">
+      <div class="label">지파넷 아이디</div>
+      <input id="id" autocomplete="username" placeholder="예) nopinalja" style="margin-bottom:12px">
+      <div class="label">비밀번호</div>
+      <input id="pw" type="password" autocomplete="current-password" placeholder="지파넷 비밀번호">
+      <div id="err" class="err" style="display:none"></div>
+    </div>
+    <button class="btn" id="go">로그인하고 시작</button>`;
+  $("go").onclick = async ()=>{
+    const id=$("id").value.trim(), pw=$("pw").value;
+    if(!id||!pw){ showErr("아이디와 비밀번호를 입력해주세요"); return; }
+    $("go").disabled=true; $("go").textContent="확인 중...";
+    const res = await api("/api/register", {mode:"verify", id, pw});
+    if(res.ok){
+      auth.id=id; auth.pw=pw; auth.writer=res.writer;
+      state.step="home"; render();
+    } else {
+      showErr(res.error||"로그인 실패"); $("go").disabled=false; $("go").textContent="로그인하고 시작";
+    }
+  };
+}
+function showErr(m){ const e=$("err"); if(e){e.textContent=m;e.style.display="block";} }
+
+function renderHome(r){
+  r.innerHTML = `
+    <div class="card" style="background:var(--ink);border:none;color:#fff;padding:20px">
+      <div style="font-size:13px;color:#B9BCC2;margin-bottom:6px">컴플레인이 발생했나요?</div>
+      <div style="font-size:17px;font-weight:800;line-height:1.45;margin-bottom:14px">
+        한 줄만 적으면<br>AI가 접수 양식을 완성합니다</div>
+      <button class="btn" id="new">+ 새 VOC 등록</button>
+      <div style="font-size:11px;color:#8A8D94;margin-top:10px;text-align:center">
+        먼저 등록한 건은 평가에 불이익이 없습니다</div>
+    </div>
+    <button class="btn btn-ghost" id="lo">로그아웃</button>`;
+  $("new").onclick=()=>{ state.site=""; state.raw=""; state.err=""; state.step="input"; render(); };
+  $("lo").onclick=()=>{ auth={id:null,pw:null,writer:null}; state.step="login"; render(); };
+}
+
+function renderInput(r){
+  r.innerHTML = `
+    <div class="card">
+      <div class="label">사업장 — 직접 입력</div>
+      <input id="site" placeholder="예) 현대본점 캐셔, 더현대서울 식품관" style="margin-bottom:16px" value="${state.site||""}">
+      <div class="label">무슨 일이 있었나요?</div>
+      <textarea id="raw" rows="4" placeholder='예) "고객이 계산 오래 걸린다고 화내심. 사과드리고 해결함"
+카톡 보내듯 편하게 적어주세요.'>${state.raw||""}</textarea>
+      <div id="err" class="err" style="display:none"></div>
+    </div>
+    <button class="btn" id="next">다음 — AI가 정리합니다</button>
+    <button class="btn btn-ghost" id="cancel">취소</button>`;
+  $("next").onclick=async ()=>{
+    const site=$("site").value.trim(), raw=$("raw").value.trim();
+    if(!site||!raw){ showErr("사업장과 내용을 모두 입력해주세요"); return; }
+    state.site=site; state.raw=raw; state.step="busy"; state.busyMsg="입력 내용을 확인하고 있습니다…"; render();
+    const res = await api("/api/ai", {mode:"questions", site, raw});
+    if(!res.ok){ state.step="input"; state.err=res.error; render(); setTimeout(()=>showErr(res.error),50); return; }
+    if((res.questions||[]).length===0){ runStructure([]); }
+    else { state.questions=res.questions; state.answers=res.questions.map(()=> ""); state.step="questions"; render(); }
+  };
+  $("cancel").onclick=()=>{ state.step="home"; render(); };
+}
+
+function renderQuestions(r){
+  let qs = state.questions.map((q,i)=>`
+    <div class="card">
+      <div style="font-weight:700;font-size:14px;margin-bottom:10px;line-height:1.5">Q${i+1}. ${q}</div>
+      <input data-i="${i}" class="ans" placeholder="짧게 답해주세요" value="${state.answers[i]||""}">
+    </div>`).join("");
+  r.innerHTML = `
+    <div class="card" style="background:var(--accent-soft);border:1px solid #F6C9A8">
+      <div style="font-size:13px;font-weight:700;color:#C9480A">정확한 접수를 위해 ${state.questions.length}가지만 더 알려주세요</div>
+      <div style="font-size:12px;color:#A8845F;margin-top:3px">모르면 비워두셔도 됩니다</div>
+    </div>
+    ${qs}
+    <button class="btn" id="mk">접수 양식 만들기</button>
+    <button class="btn btn-ghost" id="cancel">취소</button>`;
+  [...document.querySelectorAll(".ans")].forEach(el=>{
+    el.oninput=e=>{ state.answers[+e.target.dataset.i]=e.target.value; };
+  });
+  $("mk").onclick=()=>{
+    const qa = state.questions.map((q,i)=>({q, a:state.answers[i]}));
+    runStructure(qa);
+  };
+  $("cancel").onclick=()=>{ state.step="home"; render(); };
+}
+
+async function runStructure(qa){
+  state.step="busy"; state.busyMsg="접수 양식을 작성하고 심각도를 검토 중입니다…"; render();
+  const res = await api("/api/ai", {mode:"structure", site:state.site, raw:state.raw, qa});
+  if(!res.ok){ state.step="input"; render(); setTimeout(()=>showErr(res.error),50); return; }
+  const d = res.draft; d.aiSeverity = d.severity;
+  state.draft = d; state.step="review"; render();
+}
+
+function renderBusy(r){
+  r.innerHTML = `<div class="card center"><div class="spin"></div>
+    <div style="font-weight:700;font-size:14px;color:#55585F">${state.busyMsg||"처리 중…"}</div></div>`;
+}
+
+function renderReview(r){
+  const d = state.draft;
+  let sevBtns = SEV.map(s=>{
+    const active = s.n===d.severity, isAI = s.n===d.aiSeverity;
+    return `<button data-n="${s.n}" style="${active?`border-color:${s.color};background:${s.color};color:#fff`:""}">
+      ${isAI?`<span class="aitag">AI 제안</span>`:""}${s.n}<div class="lab">${s.label}</div></button>`;
+  }).join("");
+  r.innerHTML = `
+    <div class="label">AI가 작성한 접수 양식 — 확인 후 등록하세요</div>
+    <div class="card">
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <span class="pill">${d.type||"기타"}</span>
+        <span style="font-size:12px;color:var(--sub);align-self:center">${state.site}</span>
+      </div>
+      <div style="font-weight:800;font-size:16px;margin-bottom:10px">${d.title||""}</div>
+      <div class="label">상황 요약</div>
+      <div class="read" style="margin-bottom:12px">${d.summary||""}</div>
+      <div class="label">조치 내용</div>
+      <div class="read">${d.action||""}</div>
+    </div>
+    <div class="card">
+      <div class="label">심각도 — 본인이 직접 선택해주세요 (AI 제안 참고)</div>
+      <div class="sev" id="sev">${sevBtns}</div>
+      <div class="hint" id="sevdesc"></div>
+      <div style="margin-top:12px;padding:10px 12px;background:#FAF9F7;border-radius:10px;font-size:13px;color:#55585F;line-height:1.55">
+        <b style="color:var(--ink)">AI 판단 근거</b> · ${d.reason||""}
+        ${(d.escalated&&d.escalated.length)?`<div style="color:#C92A2A;font-weight:700;margin-top:4px">⚠ 확산 위험 키워드: ${d.escalated.join(", ")}</div>`:""}
+      </div>
+    </div>
+    <button class="btn" id="reg">이대로 등록하기</button>
+    <button class="btn btn-ghost" id="reedit">내용 다시 쓰기</button>`;
+  updateSevDesc();
+  [...document.querySelectorAll("#sev button")].forEach(b=>{
+    b.onclick=()=>{ state.draft.severity=+b.dataset.n; render(); };
+  });
+  $("reg").onclick=doRegister;
+  $("reedit").onclick=()=>{ state.step="input"; render(); };
+}
+function updateSevDesc(){
+  const d=state.draft, s=SEV[d.severity-1], el=$("sevdesc");
+  if(el) el.innerHTML = s.desc + (d.severity!==d.aiSeverity?` <span style="color:var(--accent);font-weight:700">· AI 제안(${d.aiSeverity})에서 조정됨</span>`:"");
+}
+
+async function doRegister(){
+  state.step="busy"; state.busyMsg="지파넷에 등록 중입니다…"; render();
+  const d = state.draft;
+  const voc = {site:state.site, type:d.type, title:d.title, summary:d.summary, action:d.action, severity:d.severity};
+  const res = await api("/api/register", {mode:"post", id:auth.id, pw:auth.pw, voc});
+  if(res.ok){ state.regResult=res; state.step="done"; render(); }
+  else { state.step="review"; render(); setTimeout(()=>alert("등록 실패: "+(res.error||"")),50); }
+}
+
+function renderDone(r){
+  const w = (state.regResult&&state.regResult.writer)||auth.writer||"";
+  r.innerHTML = `<div class="card center">
+    <div style="font-size:44px;margin-bottom:10px">✅</div>
+    <div style="font-weight:800;font-size:18px;margin-bottom:6px">지파넷 등록 완료</div>
+    <div style="font-size:13px;color:var(--sub);line-height:1.6;margin-bottom:20px">
+      ${w?w+" 님 명의로 ":""}등록되었습니다.<br>먼저 올린 VOC는 해결의 시작입니다.</div>
+    <button class="btn" id="more">VOC 하나 더 등록</button>
+    <button class="btn btn-ghost" id="home">처음으로</button>
+  </div>`;
+  $("more").onclick=()=>{ state.site="";state.raw="";state.questions=[];state.answers=[];state.draft=null; state.step="input"; render(); };
+  $("home").onclick=()=>{ state.step="home"; render(); };
+}
+
+render();
+</script>
+</body>
+</html>
