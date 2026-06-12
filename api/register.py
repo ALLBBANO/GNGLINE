@@ -11,7 +11,7 @@ import re
 
 import requests
 
-LOGIN_URL      = "http://dev.gngline.com/login_responsive.asp"
+LOGIN_URL      = "http://dev.gngline.com/assets/login/login_action.asp"
 WRITE_PAGE_URL = "http://old.gngline.com/images/gng_netw/gn_net025_write.asp"
 WRITE_PROC_URL = "http://old.gngline.com/images/gng_netw/gn_net025_write1.asp"
 
@@ -41,7 +41,12 @@ def gipanet_session(user_id, user_pw):
         "Referer": WRITE_PAGE_URL,
     })
     try:
-        s.post(LOGIN_URL, data={"m_id": user_id, "m_pass": user_pw}, timeout=12)
+        s.post(LOGIN_URL, data={
+            "memory": "on",
+            "_Command": "login",
+            "id": user_id,
+            "password": user_pw,
+        }, timeout=12)
         r = s.get(WRITE_PAGE_URL, timeout=12)
         html = r.content.decode("euc-kr", errors="replace")
     except Exception as e:
@@ -110,6 +115,9 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+
+    def do_GET(self):
+        self._reply(200, {"ok": True, "service": "GSV register API", "hint": "POST로 사용하세요"})
 
     def do_POST(self):
         try:
