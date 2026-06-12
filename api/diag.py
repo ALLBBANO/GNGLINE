@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
+"""
+GSV 진단 API v2 — 로그인 시도까지 확인
+POST로 {id, pw} 보내면 로그인 단계별 결과를 JSON으로 반환 (비번은 응답에 포함 안 함)
+GET으로 열면 접속 가능 여부만 확인
+"""
 from http.server import BaseHTTPRequestHandler
 import json
 import re
 import requests
 
-LOGIN_URL      = "http://dev.gngline.com/login_responsive.asp"
+LOGIN_URL      = "http://dev.gngline.com/assets/login/login_action.asp"
 WRITE_PAGE_URL = "http://old.gngline.com/images/gng_netw/gn_net025_write.asp"
 
 
@@ -26,11 +31,17 @@ def check_login(user_id, user_pw):
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
         "Referer": WRITE_PAGE_URL,
     })
+    # 1) 로그인 POST
     try:
-        r = s.post(LOGIN_URL, data={"m_id": user_id, "m_pass": user_pw}, timeout=12)
+        r = s.post(LOGIN_URL, data={
+            "memory": "on",
+            "_Command": "login",
+            "id": user_id,
+            "password": user_pw,
+        }, timeout=12)
         body = r.content.decode("euc-kr", errors="replace")
         out.append({
-            "step": "로그인 POST (m_id/m_pass)",
+            "step": "로그인 POST (id/password/_Command)",
             "status": r.status_code,
             "length": len(body),
             "cookies": list(s.cookies.get_dict().keys()),
@@ -41,10 +52,13 @@ def check_login(user_id, user_pw):
     except Exception as e:
         out.append({"step": "로그인 POST", "error": f"{type(e).__name__}: {str(e)[:150]}"})
         return out
+
+    # 2) 글쓰기 페이지 접근해서 로그인 됐는지 확인
     try:
         r = s.get(WRITE_PAGE_URL, timeout=12)
         html = r.content.decode("euc-kr", errors="replace")
         has_subject = ('name="subject"' in html or "name='subject'" in html)
+        # writerid hidden 값 추출 시도
         m = re.search(r'name=["\']?writerid["\']?[^>]*?value=["\']([^"\']*)["\']', html, re.IGNORECASE)
         out.append({
             "step": "글쓰기 페이지 접근",
