@@ -52,7 +52,9 @@ def gipanet_session(user_id, user_pw):
     except Exception as e:
         return None, f"지파넷 접속 오류: {e}"
 
-    if 'name="subject"' not in html and "name='subject'" not in html:
+    # 로그인 성공 판정: 서버가 writerid를 채워줬는가 (구형 ASP는 따옴표 없는 name=subject라 subject 검사 불가)
+    writerid_check = parse_hidden(html, "writerid", "")
+    if not writerid_check:
         return None, "로그인 실패 — 아이디/비밀번호를 확인해주세요"
 
     info = {
