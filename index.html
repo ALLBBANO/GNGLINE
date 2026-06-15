@@ -288,7 +288,8 @@ async function doRegister(){
   state.step="busy"; state.busyMsg="지파넷에 등록 중입니다…"; render();
   const d = state.draft;
   const voc = {site:state.site, type:d.type, title:d.title, summary:d.summary, action:d.action, severity:d.severity,
-    time_slot:state.timeSlot, target:state.target, cause:d.cause, customer_demand:d.customer_demand, repeat_signal:d.repeat_signal};
+    time_slot:state.timeSlot, target:state.target, cause:d.cause, customer_demand:d.customer_demand, repeat_signal:d.repeat_signal,
+    raw:state.raw, ai_severity:d.aiSeverity, reason:d.reason, escalated:d.escalated, location_in_text:d.location_in_text};
   const res = await api("/api/register", {mode:"post", id:auth.id, pw:auth.pw, voc});
   if(res.ok){ state.regResult=res; state.step="done"; render(); }
   else { state.step="review"; render(); setTimeout(()=>alert("등록 실패: "+(res.error||"")),50); }
