@@ -167,8 +167,8 @@ function renderInput(r){
   }).join("");
   r.innerHTML = `
     <div class="card">
-      <div class="label">발생 장소 — 직접 입력</div>
-      <input id="site" placeholder="예) 지하1층 과일매대" style="margin-bottom:16px" value="${state.site||""}">
+      <div class="label">사업장 — 직접 입력</div>
+      <input id="site" placeholder="예) 현대본점 캐셔, 더현대서울 식품관" style="margin-bottom:16px" value="${state.site||""}">
       <div class="label">발생 시점</div>
       <div id="slots" style="display:flex;gap:6px;margin-bottom:16px">${slotBtns}</div>
       <div class="label">대상</div>
@@ -188,7 +188,7 @@ function renderInput(r){
   });
   $("next").onclick=async ()=>{
     const site=$("site").value.trim(), raw=$("raw").value.trim();
-    if(!site||!raw){ showErr("발생 장소와 내용을 모두 입력해주세요"); return; }
+    if(!site||!raw){ showErr("사업장과 내용을 모두 입력해주세요"); return; }
     if(!state.timeSlot){ showErr("발생 시점을 선택해주세요"); return; }
     if(!state.target){ showErr("대상을 선택해주세요"); return; }
     state.site=site; state.raw=raw; state.step="busy"; state.busyMsg="입력 내용을 확인하고 있습니다…"; render();
@@ -246,9 +246,9 @@ function renderReview(r){
   }).join("");
   r.innerHTML = `
     <div class="label">AI가 작성한 접수 양식 — 확인 후 등록하세요</div>
-    ${!state.site ? `<div class="card" style="background:#FFF4E6;border:1px solid #F6C9A8;padding:13px 16px">
-      <div style="font-size:13px;font-weight:700;color:#C9480A">⚠ 발생장소가 빠졌어요</div>
-      <div style="font-size:12px;color:#A8845F;margin-top:3px">[내용 다시 쓰기]로 돌아가 장소를 적어주세요. 쓰신 내용은 그대로 남아있습니다.</div>
+    ${d.location_in_text===false ? `<div class="card" style="background:#FFF4E6;border:1px solid #F6C9A8;padding:13px 16px">
+      <div style="font-size:13px;font-weight:700;color:#C9480A">📍 어디서 생긴 일인지 적으면 더 정확해요</div>
+      <div style="font-size:12px;color:#A8845F;margin-top:3px">예: 지하1층 과일매대, 2층 여성복. [내용 다시 쓰기]로 보완할 수 있어요 (선택).</div>
     </div>` : ``}
     <div class="card">
       <div style="display:flex;gap:8px;margin-bottom:10px">
