@@ -7,6 +7,7 @@ GSV → 지파넷 등록 API (Vercel 서버리스 함수)
 """
 from http.server import BaseHTTPRequestHandler
 import json
+import os
 import re
 
 import requests
@@ -16,6 +17,51 @@ WRITE_PAGE_URL = "http://old.gngline.com/images/gng_netw/gn_net025_write.asp"
 WRITE_PROC_URL = "http://old.gngline.com/images/gng_netw/gn_net025_write1.asp"
 
 SEV_LABEL = {1: "경미", 2: "주의", 3: "보통", 4: "심각", 5: "긴급"}
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+
+
+def save_to_supabase(voc, result, info):
+    """등록 결과를 Supabase voc_records 테이블에 저장 (예측 분석용). 실패해도 무시."""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return
+    record = {
+        "site": voc.get("site", ""),
+        "time_slot": voc.get("time_slot"),
+        "target": voc.get("target"),
+        "type": voc.get("type"),
+        "title": voc.get("title"),
+        "summary": voc.get("summary"),
+        "action": voc.get("action"),
+        "raw_input": voc.get("raw", ""),
+        "severity": int(voc.get("severity", 3)),
+        "ai_severity": voc.get("ai_severity"),
+        "reason": voc.get("reason"),
+        "escalated_keywords": voc.get("escalated") or [],
+        "cause": voc.get("cause"),
+        "customer_demand": voc.get("customer_demand"),
+        "repeat_signal": bool(voc.get("repeat_signal")),
+        "location_in_text": voc.get("location_in_text"),
+        "writer": (result or {}).get("writer") or (info or {}).get("writer"),
+        "writer_id": (info or {}).get("writerid"),
+        "gipanet_ok": (result or {}).get("ok", False),
+        "gipanet_title": (result or {}).get("title"),
+    }
+    try:
+        requests.post(
+            f"{SUPABASE_URL}/rest/v1/voc_records",
+            json=record,
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+            },
+            timeout=10,
+        )
+    except Exception:
+        pass  # DB 저장 실패해도 지파넷 등록 결과에는 영향 없음
 
 
 def parse_hidden(html, name, default=""):
@@ -118,13 +164,17 @@ def do_post_voc(user_id, user_pw, voc):
     try:
         r = s.post(WRITE_PROC_URL, files=files, timeout=20)
         if r.status_code == 200 and "VBScript" not in r.text:
-            return {"ok": True, "title": title, "writer": info["writer"] or user_id}
-        return {"ok": False, "error": f"등록 실패 (응답 {r.status_code})"}
+            result = {"ok": True, "title": title, "writer": info["writer"] or user_id}
+        else:
+            result = {"ok": False, "error": f"등록 실패 (응답 {r.status_code})"}
     except Exception as e:
-        return {"ok": False, "error": f"등록 전송 오류: {e}"}
+        result = {"ok": False, "error": f"등록 전송 오류: {e}"}
     finally:
         user_pw = None  # 명시적 폐기
         s.close()
+
+    save_to_supabase(voc, result, info)
+    return result
 
 
 class handler(BaseHTTPRequestHandler):
