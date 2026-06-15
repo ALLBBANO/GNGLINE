@@ -25,6 +25,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 def save_to_supabase(voc, result, info):
     """등록 결과를 Supabase voc_records 테이블에 저장 (예측 분석용). 실패해도 무시."""
     if not SUPABASE_URL or not SUPABASE_KEY:
+        print(f"[GSV] Supabase env missing: URL={bool(SUPABASE_URL)} KEY={bool(SUPABASE_KEY)}")
         return
     record = {
         "site": voc.get("site", ""),
@@ -49,7 +50,7 @@ def save_to_supabase(voc, result, info):
         "gipanet_title": (result or {}).get("title"),
     }
     try:
-        requests.post(
+        resp = requests.post(
             f"{SUPABASE_URL}/rest/v1/voc_records",
             json=record,
             headers={
@@ -60,8 +61,12 @@ def save_to_supabase(voc, result, info):
             },
             timeout=10,
         )
-    except Exception:
-        pass  # DB 저장 실패해도 지파넷 등록 결과에는 영향 없음
+        if resp.status_code >= 300:
+            print(f"[GSV] Supabase insert failed: {resp.status_code} {resp.text[:500]}")
+        else:
+            print(f"[GSV] Supabase insert ok: {resp.status_code}")
+    except Exception as e:
+        print(f"[GSV] Supabase insert error: {e}")
 
 
 def parse_hidden(html, name, default=""):
