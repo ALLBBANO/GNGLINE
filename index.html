@@ -69,7 +69,7 @@ const SEV = [
 ];
 // 세션 메모리에만 보관 (저장 안 함). 새로고침하면 사라짐.
 let auth = { id:null, pw:null, writer:null };
-let state = { step:"login", site:"", raw:"", questions:[], answers:[], draft:null, busy:false, err:"" };
+let state = { step:"login", site:"", raw:"", timeSlot:"", target:"", questions:[], answers:[], draft:null, busy:false, err:"" };
 
 const $ = id => document.getElementById(id);
 function setMe(){ $("me").textContent = auth.writer ? (auth.writer+" 님") : ""; }
@@ -134,25 +134,63 @@ function renderHome(r){
         먼저 등록한 건은 평가에 불이익이 없습니다</div>
     </div>
     <button class="btn btn-ghost" id="lo">로그아웃</button>`;
-  $("new").onclick=()=>{ state.site=""; state.raw=""; state.err=""; state.step="input"; render(); };
+  $("new").onclick=()=>{ state.site=""; state.raw=""; state.timeSlot=""; state.target=""; state.err=""; state.step="input"; render(); };
   $("lo").onclick=()=>{ auth={id:null,pw:null,writer:null}; state.step="login"; render(); };
 }
 
 function renderInput(r){
+  const TIME_SLOTS = [
+    ["morning", "오전", "개점~12시"],
+    ["lunch", "점심", "12~14시"],
+    ["afternoon", "오후", "14~17시"],
+    ["evening", "저녁", "17시~폐점"],
+  ];
+  const TARGETS = [
+    ["customer", "고객"],
+    ["client", "원청사"],
+    ["etc", "기타"],
+  ];
+  const slotBtns = TIME_SLOTS.map(([v,t,sub])=>{
+    const on = state.timeSlot===v;
+    return `<button class="slot" data-v="${v}" style="flex:1;padding:10px 0 8px;border-radius:10px;cursor:pointer;
+      border:${on?'2px solid var(--accent)':'1.5px solid #E5E2DC'};
+      background:${on?'var(--accent-soft)':'#fff'};color:${on?'#C9480A':'#6B6E75'};font-family:inherit">
+      <div style="font-size:14px;font-weight:800">${t}</div>
+      <div style="font-size:10px;margin-top:2px">${sub}</div></button>`;
+  }).join("");
+  const targetBtns = TARGETS.map(([v,t])=>{
+    const on = state.target===v;
+    return `<button class="tgt" data-v="${v}" style="flex:1;padding:11px 0;border-radius:10px;cursor:pointer;
+      border:${on?'2px solid var(--accent)':'1.5px solid #E5E2DC'};
+      background:${on?'var(--accent-soft)':'#fff'};color:${on?'#C9480A':'#6B6E75'};font-family:inherit;
+      font-size:14px;font-weight:800">${t}</button>`;
+  }).join("");
   r.innerHTML = `
     <div class="card">
-      <div class="label">사업장 — 직접 입력</div>
-      <input id="site" placeholder="예) 현대본점 캐셔, 더현대서울 식품관" style="margin-bottom:16px" value="${state.site||""}">
+      <div class="label">발생 장소 — 직접 입력</div>
+      <input id="site" placeholder="예) 지하1층 과일매대" style="margin-bottom:16px" value="${state.site||""}">
+      <div class="label">발생 시점</div>
+      <div id="slots" style="display:flex;gap:6px;margin-bottom:16px">${slotBtns}</div>
+      <div class="label">대상</div>
+      <div id="tgts" style="display:flex;gap:6px;margin-bottom:16px">${targetBtns}</div>
       <div class="label">무슨 일이 있었나요?</div>
-      <textarea id="raw" rows="4" placeholder='예) "고객이 계산 오래 걸린다고 화내심. 사과드리고 해결함"
-카톡 보내듯 편하게 적어주세요.'>${state.raw||""}</textarea>
+      <textarea id="raw" rows="3" placeholder='예) "지하1층 과일매대 신선도 불만, 팀장이 교환처리"'>${state.raw||""}</textarea>
+      <div style="font-size:12px;color:var(--sub);margin-top:7px;line-height:1.4">카톡 보내듯, 장소 포함 한 줄이면 OK</div>
       <div id="err" class="err" style="display:none"></div>
     </div>
     <button class="btn" id="next">다음 — AI가 정리합니다</button>
     <button class="btn btn-ghost" id="cancel">취소</button>`;
+  [...document.querySelectorAll(".slot")].forEach(b=>{
+    b.onclick=()=>{ state.timeSlot=b.dataset.v; render(); };
+  });
+  [...document.querySelectorAll(".tgt")].forEach(b=>{
+    b.onclick=()=>{ state.target=b.dataset.v; render(); };
+  });
   $("next").onclick=async ()=>{
     const site=$("site").value.trim(), raw=$("raw").value.trim();
-    if(!site||!raw){ showErr("사업장과 내용을 모두 입력해주세요"); return; }
+    if(!site||!raw){ showErr("발생 장소와 내용을 모두 입력해주세요"); return; }
+    if(!state.timeSlot){ showErr("발생 시점을 선택해주세요"); return; }
+    if(!state.target){ showErr("대상을 선택해주세요"); return; }
     state.site=site; state.raw=raw; state.step="busy"; state.busyMsg="입력 내용을 확인하고 있습니다…"; render();
     const res = await api("/api/ai", {mode:"questions", site, raw});
     if(!res.ok){ state.step="input"; state.err=res.error; render(); setTimeout(()=>showErr(res.error),50); return; }
@@ -208,10 +246,14 @@ function renderReview(r){
   }).join("");
   r.innerHTML = `
     <div class="label">AI가 작성한 접수 양식 — 확인 후 등록하세요</div>
+    ${!state.site ? `<div class="card" style="background:#FFF4E6;border:1px solid #F6C9A8;padding:13px 16px">
+      <div style="font-size:13px;font-weight:700;color:#C9480A">⚠ 발생장소가 빠졌어요</div>
+      <div style="font-size:12px;color:#A8845F;margin-top:3px">[내용 다시 쓰기]로 돌아가 장소를 적어주세요. 쓰신 내용은 그대로 남아있습니다.</div>
+    </div>` : ``}
     <div class="card">
       <div style="display:flex;gap:8px;margin-bottom:10px">
         <span class="pill">${d.type||"기타"}</span>
-        <span style="font-size:12px;color:var(--sub);align-self:center">${state.site}</span>
+        <span style="font-size:12px;color:var(--sub);align-self:center">${state.site||"장소 미입력"} · ${({morning:"오전",lunch:"점심",afternoon:"오후",evening:"저녁"})[state.timeSlot]||""} · ${({customer:"고객",client:"원청사",etc:"기타"})[state.target]||""}</span>
       </div>
       <div style="font-weight:800;font-size:16px;margin-bottom:10px">${d.title||""}</div>
       <div class="label">상황 요약</div>
@@ -245,7 +287,8 @@ function updateSevDesc(){
 async function doRegister(){
   state.step="busy"; state.busyMsg="지파넷에 등록 중입니다…"; render();
   const d = state.draft;
-  const voc = {site:state.site, type:d.type, title:d.title, summary:d.summary, action:d.action, severity:d.severity};
+  const voc = {site:state.site, type:d.type, title:d.title, summary:d.summary, action:d.action, severity:d.severity,
+    time_slot:state.timeSlot, target:state.target, cause:d.cause, customer_demand:d.customer_demand, repeat_signal:d.repeat_signal};
   const res = await api("/api/register", {mode:"post", id:auth.id, pw:auth.pw, voc});
   if(res.ok){ state.regResult=res; state.step="done"; render(); }
   else { state.step="review"; render(); setTimeout(()=>alert("등록 실패: "+(res.error||"")),50); }
@@ -261,7 +304,7 @@ function renderDone(r){
     <button class="btn" id="more">VOC 하나 더 등록</button>
     <button class="btn btn-ghost" id="home">처음으로</button>
   </div>`;
-  $("more").onclick=()=>{ state.site="";state.raw="";state.questions=[];state.answers=[];state.draft=null; state.step="input"; render(); };
+  $("more").onclick=()=>{ state.site="";state.raw="";state.timeSlot="";state.target="";state.questions=[];state.answers=[];state.draft=null; state.step="input"; render(); };
   $("home").onclick=()=>{ state.step="home"; render(); };
 }
 
