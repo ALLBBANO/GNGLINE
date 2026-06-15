@@ -74,13 +74,29 @@ def do_post_voc(user_id, user_pw, voc):
         return {"ok": False, "error": info}
 
     sev = int(voc.get("severity", 3))
+    # 발생시점 라벨 매핑
+    TIME_LABEL = {
+        "morning":   "오전 (개점~12시)",
+        "lunch":     "점심 (12~14시)",
+        "afternoon": "오후 (14~17시)",
+        "evening":   "저녁 (17시~폐점)",
+    }
+    time_slot = voc.get("time_slot", "")
+    time_label = TIME_LABEL.get(time_slot, "미입력")
+    TARGET_LABEL = {"customer": "고객", "client": "원청사", "etc": "기타"}
+    target_label = TARGET_LABEL.get(voc.get("target", ""), "미입력")
     title = f"[GSV][{voc.get('site','')}] {voc.get('title','')} ({SEV_LABEL.get(sev,'보통')})"
     body_text = (
         f"■ 사업장: {voc.get('site','')}<br>"
+        f"■ 발생시점: {time_label}<br>"
+        f"■ 대상: {target_label}<br>"
         f"■ 유형: {voc.get('type','')}<br>"
         f"■ 심각도: {sev} ({SEV_LABEL.get(sev,'보통')})<br><br>"
         f"■ 상황 요약<br>-{voc.get('summary','')}<br><br>"
         f"■ 조치 내용<br>-{voc.get('action','')}<br><br>"
+        f"[분석태그] 대상:{target_label} / 유발요인:{voc.get('cause','미상')} / "
+        f"고객요구:{voc.get('customer_demand','미상')} / "
+        f"반복성:{'있음' if voc.get('repeat_signal') else '없음'}<br>"
         f"※ GSV(G&G Smart VOC) 자동 등록 / 작성: {info['writer'] or user_id}"
     )
     fields = {

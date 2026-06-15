@@ -44,7 +44,8 @@ def make_questions(site, raw):
         "당신은 유통 현장 컴플레인(VOC) 접수 도우미입니다. 현장 팀장이 아래 한 줄 보고를 입력했습니다.\n\n"
         f"사업장: {site}\n보고 내용: \"{raw}\"\n\n"
         "정확한 접수를 위해 꼭 필요한 추가 질문을 최대 2개만 만드세요. 이미 내용이 충분하면 빈 배열. "
-        "질문은 10초 안에 답할 수 있게 짧고 구체적으로, 존댓말로.\n\n"
+        "질문은 10초 안에 답할 수 있게 짧고 구체적으로, 존댓말로.\n"
+        "단, 발생 장소는 절대 묻지 마세요(장소는 별도로 처리됨). 질문은 심각도 판단이나 예측 분석에 중요한 것에만 쓰세요.\n\n"
         '반드시 아래 JSON만 출력 (다른 텍스트/마크다운 금지):\n{"questions": ["질문1", "질문2"]}'
     )
     d = call_claude(prompt)
@@ -60,9 +61,14 @@ def make_structure(site, raw, qa):
         "규칙:\n- 입력에 없는 사실을 지어내지 말 것. 모르면 \"확인 필요\".\n"
         "- 심각도 1(경미)~5(긴급): 1-2 현장 즉시 해결, 3 조치 필요/재발 우려, 4 본사 확인 필수, 5 본사·원청·외부기관/안전사고.\n"
         "- 환불/본사/소비자원/신고/부상/언론 등 확산 위험 키워드는 최소 4 이상.\n\n"
+        "추가로, 나중의 컴플레인 예측 분석을 위해 아래 태그도 입력 내용에서 추출하세요(없으면 \"미상\"):\n"
+        "- cause: 유발요인 (인력부족|상품결함|시스템오류|안내미흡|고객과실|시설문제|기타)\n"
+        "- customer_demand: 고객요구 (환불|교환|사과|보상|개선요구|단순불만|기타)\n"
+        "- repeat_signal: 반복성 신호 (true=이전에도 비슷한 일이 있었다는 언급/정황, false=없음)\n\n"
         "반드시 아래 JSON만 출력 (다른 텍스트/마크다운 금지):\n"
         '{"type": "응대태도|대기시간|상품품질|계산오류|시설환경|기타 중 하나", "title": "15자 내외 제목", '
-        '"summary": "발생 상황 2~3문장", "action": "조치 내용 또는 미조치", "severity": 3, "reason": "제안 근거 1문장"}'
+        '"summary": "발생 상황 2~3문장", "action": "조치 내용 또는 미조치", "severity": 3, "reason": "제안 근거 1문장", '
+        '"cause": "유발요인", "customer_demand": "고객요구", "repeat_signal": false}'
     )
     d = call_claude(prompt)
     all_text = raw + " " + " ".join((p.get("a") or "") for p in (qa or []))
@@ -82,6 +88,9 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+
+    def do_GET(self):
+        self._reply(200, {"ok": True, "service": "GSV ai API", "hint": "POST로 사용하세요"})
 
     def do_POST(self):
         try:
