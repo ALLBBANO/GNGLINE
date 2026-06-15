@@ -25,7 +25,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 def save_to_supabase(voc, result, info):
     """등록 결과를 Supabase voc_records 테이블에 저장 (예측 분석용). 실패해도 무시."""
     if not SUPABASE_URL or not SUPABASE_KEY:
-        print(f"[GSV] Supabase env missing: URL={bool(SUPABASE_URL)} KEY={bool(SUPABASE_KEY)}")
+        print(f"[GSV] Supabase env missing: URL={bool(SUPABASE_URL)} KEY={bool(SUPABASE_KEY)}", flush=True)
         return
     record = {
         "site": voc.get("site", ""),
@@ -62,11 +62,11 @@ def save_to_supabase(voc, result, info):
             timeout=10,
         )
         if resp.status_code >= 300:
-            print(f"[GSV] Supabase insert failed: {resp.status_code} {resp.text[:500]}")
+            print(f"[GSV] Supabase insert failed: {resp.status_code} {resp.text[:500]}", flush=True)
         else:
-            print(f"[GSV] Supabase insert ok: {resp.status_code}")
+            print(f"[GSV] Supabase insert ok: {resp.status_code}", flush=True)
     except Exception as e:
-        print(f"[GSV] Supabase insert error: {e}")
+        print(f"[GSV] Supabase insert error: {e}", flush=True)
 
 
 def parse_hidden(html, name, default=""):
