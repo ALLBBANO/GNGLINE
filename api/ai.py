@@ -64,11 +64,12 @@ def make_structure(site, raw, qa):
         "추가로, 나중의 컴플레인 예측 분석을 위해 아래 태그도 입력 내용에서 추출하세요(없으면 \"미상\"):\n"
         "- cause: 유발요인 (인력부족|상품결함|시스템오류|안내미흡|고객과실|시설문제|기타)\n"
         "- customer_demand: 고객요구 (환불|교환|사과|보상|개선요구|단순불만|기타)\n"
-        "- repeat_signal: 반복성 신호 (true=이전에도 비슷한 일이 있었다는 언급/정황, false=없음)\n\n"
+        "- repeat_signal: 반복성 신호 (true=이전에도 비슷한 일이 있었다는 언급/정황, false=없음)\n"
+        "- location_in_text: 보고 내용 안에 '구체적인 발생 위치'(예: 지하1층 과일매대, 2층 여성복 매장, 정문 입구 등)가 적혀 있으면 true, 막연하거나 없으면 false\n\n"
         "반드시 아래 JSON만 출력 (다른 텍스트/마크다운 금지):\n"
         '{"type": "응대태도|대기시간|상품품질|계산오류|시설환경|기타 중 하나", "title": "15자 내외 제목", '
         '"summary": "발생 상황 2~3문장", "action": "조치 내용 또는 미조치", "severity": 3, "reason": "제안 근거 1문장", '
-        '"cause": "유발요인", "customer_demand": "고객요구", "repeat_signal": false}'
+        '"cause": "유발요인", "customer_demand": "고객요구", "repeat_signal": false, "location_in_text": false}'
     )
     d = call_claude(prompt)
     all_text = raw + " " + " ".join((p.get("a") or "") for p in (qa or []))
