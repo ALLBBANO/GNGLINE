@@ -181,10 +181,10 @@ function renderInput(r){
     <button class="btn" id="next">다음 — AI가 정리합니다</button>
     <button class="btn btn-ghost" id="cancel">취소</button>`;
   [...document.querySelectorAll(".slot")].forEach(b=>{
-    b.onclick=()=>{ state.timeSlot=b.dataset.v; render(); };
+    b.onclick=()=>{ state.site=$("site").value; state.raw=$("raw").value; state.timeSlot=b.dataset.v; render(); };
   });
   [...document.querySelectorAll(".tgt")].forEach(b=>{
-    b.onclick=()=>{ state.target=b.dataset.v; render(); };
+    b.onclick=()=>{ state.site=$("site").value; state.raw=$("raw").value; state.target=b.dataset.v; render(); };
   });
   $("next").onclick=async ()=>{
     const site=$("site").value.trim(), raw=$("raw").value.trim();
